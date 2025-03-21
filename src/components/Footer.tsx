@@ -19,13 +19,13 @@ const Footer = () => {
               Transforming the way you invest and grow your wealth through our innovative referral-based investment platform.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://facebook.com/Michadek23" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
                 <Facebook size={20} />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://twitter.com/sorbadek" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
                 <Twitter size={20} />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://instagram.com/Michadek24" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
                 <Instagram size={20} />
               </a>
             </div>
@@ -89,18 +89,16 @@ const Footer = () => {
               <li className="flex items-start">
                 <MapPin className="h-5 w-5 mr-3 text-primary mt-0.5" />
                 <span className="text-sm text-muted-foreground">
-                  123 Investment Avenue<br />
-                  Financial District<br />
-                  New York, NY 10001
+                  109 Mandela A Uniport Nigeria
                 </span>
               </li>
               <li className="flex items-center">
                 <Phone className="h-5 w-5 mr-3 text-primary" />
-                <span className="text-sm text-muted-foreground">+1 (555) 123-4567</span>
+                <span className="text-sm text-muted-foreground">08136274163</span>
               </li>
               <li className="flex items-center">
                 <Mail className="h-5 w-5 mr-3 text-primary" />
-                <span className="text-sm text-muted-foreground">support@inveron.com</span>
+                <span className="text-sm text-muted-foreground">adelekem600@gmail.com</span>
               </li>
             </ul>
           </div>

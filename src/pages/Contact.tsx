@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Layout from "@/components/Layout";
 import FadeIn from "@/components/FadeIn";
@@ -82,14 +81,14 @@ const Contact = () => {
               <ContactOption
                 icon={<Phone className="h-5 w-5 text-primary" />}
                 title="Phone"
-                details="+1 (555) 123-4567"
+                details="08136274163"
               />
             </FadeIn>
             <FadeIn delay={0.2}>
               <ContactOption
                 icon={<Mail className="h-5 w-5 text-primary" />}
                 title="Email"
-                details="support@inveron.com"
+                details="adelekem600@gmail.com"
               />
             </FadeIn>
             <FadeIn delay={0.3}>
@@ -98,9 +97,7 @@ const Contact = () => {
                 title="Office"
                 details={
                   <>
-                    123 Investment Avenue<br />
-                    Financial District<br />
-                    New York, NY 10001
+                    109 Mandela A Uniport Nigeria
                   </>
                 }
               />
@@ -131,11 +128,11 @@ const Contact = () => {
                   <ul className="space-y-2 text-sm">
                     <li className="flex justify-between">
                       <span>Monday - Friday:</span>
-                      <span>9:00 AM - 8:00 PM EST</span>
+                      <span>9:00 AM - 8:00 PM WAT</span>
                     </li>
                     <li className="flex justify-between">
                       <span>Saturday:</span>
-                      <span>10:00 AM - 6:00 PM EST</span>
+                      <span>10:00 AM - 6:00 PM WAT</span>
                     </li>
                     <li className="flex justify-between">
                       <span>Sunday:</span>
