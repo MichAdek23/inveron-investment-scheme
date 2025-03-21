@@ -17,6 +17,8 @@ import Verification from "./pages/Verification";
 import Dashboard from "./pages/Dashboard";
 import Referrals from "./pages/Referrals";
 import NotFound from "./pages/NotFound";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
 
 const App = () => {
   // Create a QueryClient instance inside the component
@@ -38,6 +40,8 @@ const App = () => {
                 <Route path="/verification" element={<Verification />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/referrals" element={<Referrals />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
