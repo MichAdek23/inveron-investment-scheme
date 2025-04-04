@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "sonner";
 import { PlanType } from '@/data/plans';
+import { formatNaira, convertUsdToNgn } from '@/integrations/paystack/client';
 
 export interface User {
   id: string;
@@ -12,7 +13,9 @@ export interface User {
   referredBy?: string;
   isVerified: boolean;
   balance: number;
+  balanceNaira: number;
   referralBonus: number;
+  referralBonusNaira: number;
   joinedAt: Date;
   avatar?: string;
 }
@@ -45,7 +48,9 @@ const mockUsers: User[] = [
     referralCode: 'JOHNDOE123',
     isVerified: true,
     balance: 1000,
+    balanceNaira: convertUsdToNgn(1000),
     referralBonus: 150,
+    referralBonusNaira: convertUsdToNgn(150),
     joinedAt: new Date('2023-01-15'),
     avatar: '/placeholder.svg',
   }
@@ -63,6 +68,15 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         const parsedUser = JSON.parse(storedUser);
         // Convert string date back to Date object
         parsedUser.joinedAt = new Date(parsedUser.joinedAt);
+        
+        // Ensure Naira values are present
+        if (!parsedUser.balanceNaira) {
+          parsedUser.balanceNaira = convertUsdToNgn(parsedUser.balance);
+        }
+        if (!parsedUser.referralBonusNaira) {
+          parsedUser.referralBonusNaira = convertUsdToNgn(parsedUser.referralBonus);
+        }
+        
         setUser(parsedUser);
       } catch (error) {
         console.error('Failed to parse user data:', error);
@@ -137,7 +151,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         referredBy: referralCode,
         isVerified: false,
         balance: 0, // Start with zero balance until payment
+        balanceNaira: 0,
         referralBonus: 0,
+        referralBonusNaira: 0,
         joinedAt: new Date(),
       };
       
@@ -182,14 +198,24 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const updateUserBalance = (amount: number): void => {
     if (user) {
-      setUser({ ...user, balance: user.balance + amount });
+      const amountNaira = convertUsdToNgn(amount);
+      setUser({ 
+        ...user, 
+        balance: user.balance + amount,
+        balanceNaira: user.balanceNaira + amountNaira
+      });
     }
   };
 
   const updateReferralBonus = (amount: number): void => {
     if (user) {
-      setUser({ ...user, referralBonus: user.referralBonus + amount });
-      toast.success(`Referral bonus of $${amount} added to your account!`);
+      const amountNaira = convertUsdToNgn(amount);
+      setUser({ 
+        ...user, 
+        referralBonus: user.referralBonus + amount,
+        referralBonusNaira: user.referralBonusNaira + amountNaira
+      });
+      toast.success(`Referral bonus of ${formatNaira(amountNaira)} added to your account!`);
     }
   };
 
@@ -201,17 +227,22 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       
       if (!user) throw new Error("User not logged in");
       
-      if (amount > user.referralBonus) {
+      // Convert amount to USD for internal comparison if needed
+      // This assumes amount is already in Naira
+      const usdAmount = amount / convertUsdToNgn(1);
+      
+      if (amount > user.referralBonusNaira) {
         toast.error("Insufficient referral bonus");
         return false;
       }
       
       setUser({
         ...user,
-        referralBonus: user.referralBonus - amount
+        referralBonus: user.referralBonus - usdAmount,
+        referralBonusNaira: user.referralBonusNaira - amount
       });
       
-      toast.success(`Successfully withdrawn $${amount}`);
+      toast.success(`Successfully withdrawn ${formatNaira(amount)}`);
       return true;
     } catch (error) {
       toast.error("Withdrawal failed");

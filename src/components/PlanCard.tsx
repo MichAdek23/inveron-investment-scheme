@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Plan } from '@/data/plans';
 import { cn } from '@/lib/utils';
+import { formatNaira } from '@/integrations/paystack/client';
 
 interface PlanCardProps {
   plan: Plan;
@@ -61,7 +62,7 @@ const PlanCard = ({ plan, className, onSelect, selected = false }: PlanCardProps
         </CardHeader>
         <CardContent className="flex-grow">
           <div className="flex items-baseline mb-6">
-            <span className="text-4xl font-bold">${plan.price}</span>
+            <span className="text-4xl font-bold">{formatNaira(plan.priceNaira)}</span>
             <span className="ml-1 text-muted-foreground">/investment</span>
           </div>
           <ul className="space-y-3">
@@ -79,7 +80,7 @@ const PlanCard = ({ plan, className, onSelect, selected = false }: PlanCardProps
             ))}
           </ul>
           <div className="mt-6 p-3 bg-muted/50 rounded-lg">
-            <p className="text-sm font-medium">Referral Bonus: ${plan.referralBonus} per referral</p>
+            <p className="text-sm font-medium">Referral Bonus: {formatNaira(plan.referralBonusNaira)} per referral</p>
           </div>
         </CardContent>
         <CardFooter className="pt-2">

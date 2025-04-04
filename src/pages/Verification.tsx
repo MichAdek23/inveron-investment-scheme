@@ -1,9 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { CheckCircle, ArrowRight, CreditCard } from 'lucide-react';
+import { CheckCircle, ArrowRight, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,51 +13,105 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import Layout from '@/components/Layout';
 import FadeIn from '@/components/FadeIn';
 import { useUser } from '@/contexts/UserContext';
 import { getPlanById } from '@/data/plans';
+import { verifyTransaction, formatNaira } from '@/integrations/paystack/client';
 
 const Verification = () => {
   const navigate = useNavigate();
-  const { user, isLoading, verifyUser, updateUserBalance } = useUser();
+  const location = useLocation();
+  const { user, isLoading, verifyUser, updateUserBalance, register: registerUser } = useUser();
+
   const [isVerifying, setIsVerifying] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<'pending' | 'success'>('pending');
+  const [paymentStep, setPaymentStep] = useState<'pending' | 'verifying' | 'success' | 'failed'>('pending');
+  const [progress, setProgress] = useState(0);
+
+  const searchParams = new URLSearchParams(location.search);
+  const reference = searchParams.get('reference');
+  const planId = searchParams.get('plan');
+  const email = searchParams.get('email');
+  const name = searchParams.get('name');
+  const password = searchParams.get('password');
+  const referralCode = searchParams.get('ref');
 
   useEffect(() => {
-    // Redirect if not logged in
-    if (!user && !isLoading) {
+    // If this is a redirect from Paystack with a reference, verify the payment
+    if (reference && planId && email && name && password) {
+      verifyPayment();
+    } else if (user && user.isVerified) {
+      // If user is already verified, redirect to dashboard
+      navigate('/dashboard');
+    } else if (!user && !isLoading && !reference) {
+      // If not from Paystack and not logged in, redirect to login
       navigate('/login');
     }
-    
-    // Redirect if already verified
-    if (user?.isVerified) {
-      navigate('/dashboard');
-    }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, reference, navigate]);
 
-  const handlePayment = async () => {
-    if (!user) return;
+  // Function to simulate progress
+  useEffect(() => {
+    if (paymentStep === 'verifying') {
+      const interval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(interval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 300);
+      
+      return () => clearInterval(interval);
+    }
+  }, [paymentStep]);
+
+  const verifyPayment = async () => {
+    if (!reference || !planId || !email || !name || !password) {
+      setPaymentStep('failed');
+      toast.error('Missing payment information');
+      return;
+    }
     
-    setIsVerifying(true);
+    setPaymentStep('verifying');
+    
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Verify the transaction with Paystack
+      const response = await verifyTransaction(reference);
       
-      const plan = getPlanById(user.plan);
-      
-      // Update user balance with plan amount
-      updateUserBalance(plan.price);
-      
-      setPaymentStep('success');
-      
-      toast.success('Payment successful!');
+      if (response.status && response.data.status === 'success') {
+        // Register/create the user if coming from Paystack redirect
+        if (!user) {
+          const type = planId as PlanType;
+          await registerUser(name, email, password, type, referralCode || undefined);
+        }
+        
+        // Update user balance
+        const plan = getPlanById(planId as PlanType);
+        updateUserBalance(plan.price);
+        
+        // Verify user
+        await verifyUser();
+        
+        setPaymentStep('success');
+        setProgress(100);
+        
+        toast.success('Payment verified successfully!');
+        
+        // Redirect to dashboard after success
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 3000);
+      } else {
+        throw new Error('Payment verification failed');
+      }
     } catch (error) {
-      toast.error('Payment failed', {
+      console.error("Payment verification error:", error);
+      setPaymentStep('failed');
+      toast.error('Payment verification failed', {
         description: 'Please try again or contact support.',
       });
-    } finally {
-      setIsVerifying(false);
     }
   };
 
@@ -75,7 +129,143 @@ const Verification = () => {
     }
   };
 
-  if (!user) {
+  // Render content based on paymentStep
+  const renderContent = () => {
+    switch (paymentStep) {
+      case 'verifying':
+        return (
+          <div className="space-y-6 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+            </div>
+            
+            <div>
+              <h3 className="text-xl font-medium">Verifying Your Payment</h3>
+              <p className="text-muted-foreground mt-1">
+                Please wait while we verify your payment
+              </p>
+            </div>
+            
+            <div className="w-full space-y-2">
+              <Progress value={progress} className="w-full" />
+              <p className="text-sm text-muted-foreground">
+                {progress === 100 ? 'Verification complete!' : 'Processing...'}
+              </p>
+            </div>
+          </div>
+        );
+      
+      case 'success':
+        return (
+          <div className="space-y-6 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+            
+            <div>
+              <h3 className="text-xl font-medium">Payment Successful!</h3>
+              <p className="text-muted-foreground mt-1">
+                Your account has been verified successfully
+              </p>
+            </div>
+            
+            <div className="rounded-lg border p-4">
+              <p className="font-medium">You're all set!</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Redirecting you to the dashboard...
+              </p>
+            </div>
+          </div>
+        );
+      
+      case 'failed':
+        return (
+          <div className="space-y-6 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+            </div>
+            
+            <div>
+              <h3 className="text-xl font-medium">Payment Verification Failed</h3>
+              <p className="text-muted-foreground mt-1">
+                We couldn't verify your payment
+              </p>
+            </div>
+            
+            <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+              <p className="font-medium text-red-800">What to do next:</p>
+              <ul className="text-sm text-red-700 mt-2 list-disc pl-5">
+                <li>Check if your payment was processed</li>
+                <li>Try again in a few minutes</li>
+                <li>Contact support if the problem persists</li>
+              </ul>
+            </div>
+          </div>
+        );
+      
+      default:
+        return (
+          <div className="space-y-6">
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium">{user ? getPlanById(user.plan).name : 'Loading plan...'}</p>
+                  <p className="text-sm text-muted-foreground">One-time payment</p>
+                </div>
+                {user && (
+                  <p className="font-bold text-lg">{formatNaira(getPlanById(user.plan).priceNaira)}</p>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                  <span className="text-primary font-medium">1</span>
+                </div>
+                <div>
+                  <p className="font-medium">Choose plan</p>
+                  <p className="text-sm text-muted-foreground">
+                    {user ? `You selected ${getPlanById(user.plan).name}` : 'Plan selected'}
+                  </p>
+                </div>
+                <CheckCircle className="ml-auto h-5 w-5 text-green-500" />
+              </div>
+              
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                  <span className="text-primary font-medium">2</span>
+                </div>
+                <div>
+                  <p className="font-medium">Create account</p>
+                  <p className="text-sm text-muted-foreground">Account created successfully</p>
+                </div>
+                <CheckCircle className="ml-auto h-5 w-5 text-green-500" />
+              </div>
+              
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                  <span className="text-primary font-medium">3</span>
+                </div>
+                <div>
+                  <p className="font-medium">Make payment</p>
+                  <p className="text-sm text-muted-foreground">
+                    {user && user.balance > 0 
+                      ? 'Payment completed successfully' 
+                      : 'Complete your payment to activate'}
+                  </p>
+                </div>
+                {user && user.balance > 0 ? (
+                  <CheckCircle className="ml-auto h-5 w-5 text-green-500" />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  if (!user && !reference) {
     return null; // Loading state handled by Layout
   }
 
@@ -90,115 +280,55 @@ const Verification = () => {
                 <CardDescription>
                   {paymentStep === 'pending'
                     ? 'Make payment to activate your account'
-                    : 'Verify your account to start investing'}
+                    : paymentStep === 'verifying'
+                    ? 'Verifying your payment...'
+                    : paymentStep === 'success'
+                    ? 'Account verification successful!'
+                    : 'Payment verification failed'}
                 </CardDescription>
               </CardHeader>
               
               <CardContent className="pt-6">
-                {paymentStep === 'pending' ? (
-                  <div className="space-y-6">
-                    <div className="bg-muted/50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">{getPlanById(user.plan).name}</p>
-                          <p className="text-sm text-muted-foreground">One-time payment</p>
-                        </div>
-                        <p className="font-bold text-lg">${getPlanById(user.plan).price.toFixed(2)}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                          <span className="text-primary font-medium">1</span>
-                        </div>
-                        <div>
-                          <p className="font-medium">Choose plan</p>
-                          <p className="text-sm text-muted-foreground">You selected {getPlanById(user.plan).name}</p>
-                        </div>
-                        <CheckCircle className="ml-auto h-5 w-5 text-green-500" />
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                          <span className="text-primary font-medium">2</span>
-                        </div>
-                        <div>
-                          <p className="font-medium">Create account</p>
-                          <p className="text-sm text-muted-foreground">Account created successfully</p>
-                        </div>
-                        <CheckCircle className="ml-auto h-5 w-5 text-green-500" />
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center mr-3">
-                          <span className="text-white font-medium">3</span>
-                        </div>
-                        <div>
-                          <p className="font-medium">Make payment</p>
-                          <p className="text-sm text-muted-foreground">Complete your payment to activate</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6 text-center">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                      <CheckCircle className="h-8 w-8 text-green-500" />
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-xl font-medium">Payment Complete!</h3>
-                      <p className="text-muted-foreground mt-1">
-                        Your payment of ${getPlanById(user.plan).price.toFixed(2)} has been received
-                      </p>
-                    </div>
-                    
-                    <div className="rounded-lg border p-4">
-                      <p className="font-medium">Next: Account Verification</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Verify your account to activate your plan and start earning
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {renderContent()}
               </CardContent>
               
               <CardFooter className="flex-col space-y-2">
-                {paymentStep === 'pending' ? (
-                  <Button
-                    onClick={handlePayment}
-                    disabled={isVerifying}
-                    className="w-full"
-                  >
-                    {isVerifying ? (
-                      <>Processing...</>
-                    ) : (
-                      <>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Make Payment
-                      </>
-                    )}
-                  </Button>
-                ) : (
+                {paymentStep === 'pending' && !reference ? (
                   <Button
                     onClick={handleVerify}
-                    disabled={isVerifying}
+                    disabled={isVerifying || !user}
                     className="w-full"
                   >
                     {isVerifying ? (
                       <>Verifying...</>
                     ) : (
                       <>
-                        Verify Account
                         <ArrowRight className="ml-2 h-4 w-4" />
+                        Verify Account
                       </>
                     )}
                   </Button>
-                )}
+                ) : paymentStep === 'failed' ? (
+                  <Button
+                    onClick={() => navigate('/register')}
+                    className="w-full"
+                  >
+                    Try Again
+                  </Button>
+                ) : paymentStep === 'success' ? (
+                  <Button
+                    onClick={() => navigate('/dashboard')}
+                    className="w-full"
+                  >
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : null}
                 
                 <p className="text-xs text-center text-muted-foreground">
-                  For demonstration purposes, no actual payment is processed.
+                  {reference 
+                    ? 'Transaction Reference: ' + reference 
+                    : 'Having issues? Contact our support team.'}
                 </p>
               </CardFooter>
             </Card>

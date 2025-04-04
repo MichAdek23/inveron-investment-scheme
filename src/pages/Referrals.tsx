@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -47,8 +46,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Layout from '@/components/Layout';
 import FadeIn from '@/components/FadeIn';
-import { useUser } from '@/contexts/UserContext';
+import { formatNaira } from '@/integrations/paystack/client';
 import { getPlanById } from '@/data/plans';
+import { useUser } from '@/contexts/UserContext';
 
 // Mock data for referred users
 const mockReferrals = [
@@ -112,7 +112,7 @@ const WithdrawalDialog = ({ availableAmount, minWithdrawal, onWithdraw }: Withdr
     }
     
     if (amount < minWithdrawal) {
-      toast.error(`Minimum withdrawal amount is $${minWithdrawal}`);
+      toast.error(`Minimum withdrawal amount is ${formatNaira(minWithdrawal)}`);
       return;
     }
     
@@ -145,14 +145,14 @@ const WithdrawalDialog = ({ availableAmount, minWithdrawal, onWithdraw }: Withdr
             <div className="space-y-2">
               <label className="text-sm font-medium">Available Balance</label>
               <div className="p-3 bg-muted rounded-lg">
-                <span className="font-medium">${availableAmount.toFixed(2)}</span>
+                <span className="font-medium">{formatNaira(availableAmount)}</span>
               </div>
             </div>
             
             <div className="space-y-2">
               <label className="text-sm font-medium">Withdrawal Amount</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">₦</span>
                 <Input
                   type="number"
                   value={amount}
@@ -160,11 +160,11 @@ const WithdrawalDialog = ({ availableAmount, minWithdrawal, onWithdraw }: Withdr
                   className="pl-7"
                   min={minWithdrawal}
                   max={availableAmount}
-                  step={0.01}
+                  step={100}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Minimum withdrawal: ${minWithdrawal.toFixed(2)}
+                Minimum withdrawal: {formatNaira(minWithdrawal)}
               </p>
             </div>
             
@@ -210,7 +210,11 @@ const Referrals = () => {
     }
   }, [user, isLoading, navigate]);
   
-  const [referrals, setReferrals] = useState(mockReferrals);
+  // Update referrals to include Naira amounts
+  const [referrals, setReferrals] = useState(mockReferrals.map(ref => ({
+    ...ref,
+    bonusNaira: ref.bonus * 1550, // Convert to Naira
+  })));
   
   const copyReferralLink = () => {
     if (!user) return;
@@ -226,11 +230,12 @@ const Referrals = () => {
     if (!user) return;
     
     try {
+      // Here amount is now in Naira
       const success = await withdrawReferralBonus(amount);
       
       if (success) {
         toast.success('Withdrawal successful', {
-          description: `$${amount.toFixed(2)} has been sent to your bank account.`,
+          description: `${formatNaira(amount)} has been sent to your bank account.`,
         });
       }
     } catch (error) {
@@ -312,7 +317,7 @@ const Referrals = () => {
                   <div className="p-2 rounded-full bg-purple-100 mb-2">
                     <TrendingUp className="h-5 w-5 text-purple-600" />
                   </div>
-                  <p className="text-2xl font-bold">${totalEarned}</p>
+                  <p className="text-2xl font-bold">{formatNaira(totalEarned * 1550)}</p>
                   <p className="text-sm text-muted-foreground">Total Earnings</p>
                 </CardContent>
               </Card>
@@ -376,7 +381,7 @@ const Referrals = () => {
                               <TableCell className="text-right">
                                 {referral.status === 'verified' ? (
                                   <span className="font-medium text-green-600">
-                                    +${referral.bonus}
+                                    +{formatNaira(referral.bonusNaira)}
                                   </span>
                                 ) : referral.status === 'pending' ? (
                                   <span className="text-yellow-600">
@@ -465,14 +470,14 @@ const Referrals = () => {
                     <div className="bg-muted p-4 rounded-lg">
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Available for withdrawal:</span>
-                        <span className="font-bold text-xl">${user.referralBonus.toFixed(2)}</span>
+                        <span className="font-bold text-xl">{formatNaira(user.referralBonusNaira)}</span>
                       </div>
                     </div>
                     
                     {user.referralBonus >= userPlan.minWithdrawal ? (
                       <WithdrawalDialog 
-                        availableAmount={user.referralBonus}
-                        minWithdrawal={userPlan.minWithdrawal}
+                        availableAmount={user.referralBonusNaira}
+                        minWithdrawal={userPlan.minWithdrawalNaira}
                         onWithdraw={handleWithdraw}
                       />
                     ) : (
@@ -481,7 +486,7 @@ const Referrals = () => {
                         <div className="text-sm text-yellow-700">
                           <p className="font-medium">Minimum withdrawal not reached</p>
                           <p className="mt-1">
-                            You need at least ${userPlan.minWithdrawal.toFixed(2)} to withdraw. You're ${(userPlan.minWithdrawal - user.referralBonus).toFixed(2)} away.
+                            You need at least {formatNaira(userPlan.minWithdrawalNaira)} to withdraw. You're {formatNaira(userPlan.minWithdrawalNaira - user.referralBonusNaira)} away.
                           </p>
                         </div>
                       </div>
@@ -491,7 +496,7 @@ const Referrals = () => {
                     <div className="w-full text-sm text-muted-foreground">
                       <div className="flex justify-between py-1">
                         <span>Minimum withdrawal:</span>
-                        <span>${userPlan.minWithdrawal.toFixed(2)}</span>
+                        <span>{formatNaira(userPlan.minWithdrawalNaira)}</span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span>Processing time:</span>
@@ -524,7 +529,7 @@ const Referrals = () => {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Referral bonus:</span>
-                        <span className="font-medium">${userPlan.referralBonus} per referral</span>
+                        <span className="font-medium">{formatNaira(userPlan.referralBonusNaira)} per referral</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Maximum referrals:</span>

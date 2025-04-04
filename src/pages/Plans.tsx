@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -23,6 +22,7 @@ import {
 import PlanCard from '@/components/PlanCard';
 import FadeIn from '@/components/FadeIn';
 import { plans, Plan, PlanType } from '@/data/plans';
+import { formatNaira } from '@/integrations/paystack/client';
 
 const PlanComparison = () => {
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
@@ -109,7 +109,7 @@ const PlanComparison = () => {
                     <TableCell className="font-medium">Investment Amount</TableCell>
                     {plans.map((plan) => (
                       <TableCell key={`${plan.id}-price`} className="text-center font-bold">
-                        ${plan.price}
+                        {formatNaira(plan.priceNaira)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -117,7 +117,7 @@ const PlanComparison = () => {
                     <TableCell className="font-medium">Referral Bonus</TableCell>
                     {plans.map((plan) => (
                       <TableCell key={`${plan.id}-referral`} className="text-center">
-                        ${plan.referralBonus} per referral
+                        {formatNaira(plan.referralBonusNaira)} per referral
                       </TableCell>
                     ))}
                   </TableRow>
@@ -165,7 +165,7 @@ const PlanComparison = () => {
                     </TableCell>
                     {plans.map((plan) => (
                       <TableCell key={`${plan.id}-min-withdrawal`} className="text-center">
-                        ${plan.minWithdrawal}
+                        {formatNaira(plan.minWithdrawalNaira)}
                       </TableCell>
                     ))}
                   </TableRow>

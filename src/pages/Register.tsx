@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -37,6 +36,7 @@ import PlanCard from '@/components/PlanCard';
 import FadeIn from '@/components/FadeIn';
 import { plans, PlanType, getPlanById } from '@/data/plans';
 import { useUser } from '@/contexts/UserContext';
+import { initializePayment, formatNaira } from '@/integrations/paystack/client';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -96,26 +96,37 @@ const Register = () => {
   const processPayment = async () => {
     setIsProcessing(true);
     try {
-      // Simulate payment processing
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      
       const formValues = form.getValues();
-      const plan = formValues.plan;
+      const plan = getPlanById(formValues.plan);
+      const baseUrl = window.location.origin;
+      const callbackUrl = `${baseUrl}/verification?plan=${formValues.plan}&email=${encodeURIComponent(formValues.email)}&name=${encodeURIComponent(formValues.name)}&password=${encodeURIComponent(formValues.password)}${formValues.referralCode ? `&ref=${encodeURIComponent(formValues.referralCode)}` : ''}`;
       
-      await registerUser(
-        formValues.name,
+      const response = await initializePayment(
         formValues.email,
-        formValues.password,
-        plan,
-        formValues.referralCode
+        plan.priceNaira,
+        formValues.plan,
+        formValues.name,
+        callbackUrl
       );
       
-      toast.success('Registration successful!', {
-        description: 'Welcome to Inveron',
-      });
-      
-      navigate('/verification');
+      if (response.status && response.data && response.data.authorization_url) {
+        toast.success('Redirecting to payment gateway...');
+        // Register the user first
+        await registerUser(
+          formValues.name,
+          formValues.email,
+          formValues.password,
+          formValues.plan,
+          formValues.referralCode
+        );
+        
+        // Redirect to Paystack checkout
+        window.location.href = response.data.authorization_url;
+      } else {
+        throw new Error('Failed to initialize payment');
+      }
     } catch (error) {
+      console.error("Payment initialization error:", error);
       toast.error('Payment failed', {
         description: 'Please try again or contact support.',
       });
@@ -239,7 +250,7 @@ const Register = () => {
                               <SelectContent>
                                 {plans.map((plan) => (
                                   <SelectItem key={plan.id} value={plan.id}>
-                                    {plan.name} - ${plan.price}
+                                    {plan.name} - {formatNaira(plan.priceNaira)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -312,30 +323,15 @@ const Register = () => {
                         <p className="text-sm text-muted-foreground">One-time payment</p>
                       </div>
                       <p className="font-bold text-lg">
-                        ${getPlanById(form.getValues().plan).price.toFixed(2)}
+                        {formatNaira(getPlanById(form.getValues().plan).priceNaira)}
                       </p>
                     </div>
 
-                    {/* Simplified payment form */}
-                    <div className="space-y-4 pt-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Card Number</label>
-                        <Input placeholder="1234 5678 9012 3456" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Expiry Date</label>
-                          <Input placeholder="MM/YY" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">CVC</label>
-                          <Input placeholder="123" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Cardholder Name</label>
-                        <Input placeholder="John Doe" />
-                      </div>
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                      <p className="text-sm text-green-800">
+                        <CheckCircle className="h-4 w-4 text-green-600 inline mr-2" />
+                        Secure payment via Paystack
+                      </p>
                     </div>
 
                     <div className="flex items-start space-x-2 pt-4">
@@ -367,13 +363,13 @@ const Register = () => {
                       ) : (
                         <>
                           <CreditCard className="mr-2 h-4 w-4" />
-                          Pay ${getPlanById(form.getValues().plan).price.toFixed(2)}
+                          Pay {formatNaira(getPlanById(form.getValues().plan).priceNaira)} with Paystack
                         </>
                       )}
                     </Button>
                     
                     <p className="text-xs text-center text-muted-foreground mt-4">
-                      For demo purposes, no actual payment will be processed.
+                      You will be redirected to Paystack's secure payment gateway.
                     </p>
                   </CardFooter>
                 </Card>
